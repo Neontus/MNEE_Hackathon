@@ -10,6 +10,8 @@ export const metadata: Metadata = {
   description: "Modern banking for startups",
 };
 
+import { AuthProvider } from "@/context/auth-context";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -18,20 +20,22 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <div className="flex-col md:flex">
-          <div className="border-b">
-            <div className="flex h-16 items-center px-4">
-              <h1 className="text-xl font-bold mr-8">NeoBank</h1>
-              <MainNav />
-              <div className="ml-auto flex items-center space-x-4">
-                {/* UserNav or other items could go here */}
+        <AuthProvider>
+          <div className="flex-col md:flex">
+            <div className="border-b">
+              <div className="flex h-16 items-center px-4">
+                <h1 className="text-xl font-bold mr-8">NeoBank</h1>
+                <MainNav />
+                <div className="ml-auto flex items-center space-x-4">
+                  {/* UserNav or other items could go here */}
+                </div>
               </div>
             </div>
+            <div className="flex-1 space-y-4 p-8 pt-6">
+              {children}
+            </div>
           </div>
-          <div className="flex-1 space-y-4 p-8 pt-6">
-            {children}
-          </div>
-        </div>
+        </AuthProvider>
       </body>
     </html>
   );

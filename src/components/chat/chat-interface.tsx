@@ -8,7 +8,15 @@ import { Send } from "lucide-react";
 import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
-const initialMessages = [
+
+
+interface Message {
+    id: number;
+    role: "user" | "agent";
+    content: string;
+}
+
+const initialMessages: Message[] = [
     {
         id: 1,
         role: "agent",
@@ -17,13 +25,13 @@ const initialMessages = [
 ];
 
 export function ChatInterface() {
-    const [messages, setMessages] = useState(initialMessages);
+    const [messages, setMessages] = useState<Message[]>(initialMessages);
     const [input, setInput] = useState("");
     const [isLoading, setIsLoading] = useState(false);
 
     const handleSend = async () => {
         if (!input.trim()) return;
-        const userMsg = { id: Date.now(), role: "user", content: input };
+        const userMsg: Message = { id: Date.now(), role: "user", content: input };
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
         setIsLoading(true);
@@ -38,7 +46,7 @@ export function ChatInterface() {
             const data = await response.json();
 
             if (response.ok) {
-                const agentMsg = {
+                const agentMsg: Message = {
                     id: Date.now() + 1,
                     role: "agent",
                     content: data.content,
@@ -46,7 +54,7 @@ export function ChatInterface() {
                 setMessages((prev) => [...prev, agentMsg]);
             } else {
                 console.error("API Error:", data.error);
-                const errorMsg = {
+                const errorMsg: Message = {
                     id: Date.now() + 1,
                     role: "agent",
                     content: "Sorry, I encountered an error connecting to the agent."
@@ -55,7 +63,7 @@ export function ChatInterface() {
             }
         } catch (error) {
             console.error("Network Error:", error);
-            const errorMsg = {
+            const errorMsg: Message = {
                 id: Date.now() + 1,
                 role: "agent",
                 content: "Sorry, I encountered a network error."
@@ -68,7 +76,7 @@ export function ChatInterface() {
 
     return (
         <Card className="h-[600px] flex flex-col">
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle>Financial Agent</CardTitle>
             </CardHeader>
             <CardContent className="flex-1 overflow-hidden p-0">
@@ -88,6 +96,7 @@ export function ChatInterface() {
                                         <AvatarFallback>{msg.role === "user" ? "U" : "AI"}</AvatarFallback>
                                         <AvatarImage src={msg.role === "agent" ? "/bot-avatar.png" : undefined} />
                                     </Avatar>
+
                                     <div
                                         className={`rounded-lg p-3 text-sm ${msg.role === "user"
                                             ? "bg-primary text-primary-foreground"

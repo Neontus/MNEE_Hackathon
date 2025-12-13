@@ -1,31 +1,40 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 
 export async function POST(req: Request) {
   try {
     const { messages } = await req.json();
     const apiKey = process.env.GEMINI_API_KEY;
+    const cookieStore = await cookies();
+    const authToken = cookieStore.get('hc_auth_token')?.value;
 
     if (!apiKey) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not defined" },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: "GEMINI_API_KEY is not defined" }, { status: 500 });
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-    // Convert last user message to prompt
-    // For a simple implementation, we'll just send the last message
-    // A robust version would format history for Gemini
     const lastMessage = messages[messages.length - 1];
     
-    if (!lastMessage || lastMessage.role !== 'user') {
-       return NextResponse.json({ error: "No user message found" }, { status: 400 });
-    }
+    // Filter history to ensure it starts with a user message
+    const historyMessages = messages.slice(0, -1);
+    const firstUserIndex = historyMessages.findIndex((m: any) => m.role === 'user');
+    
+    const history = firstUserIndex !== -1 
+        ? historyMessages.slice(firstUserIndex).map((m: any) => ({
+            role: m.role === 'agent' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+          }))
+        : [];
 
-    const result = await model.generateContent(lastMessage.content);
+    // Construct chat history for correct context
+    const chat = model.startChat({
+        history
+    });
+
+    const result = await chat.sendMessage(lastMessage.content);
     const response = await result.response;
     const text = response.text();
 
