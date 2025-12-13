@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
-import { CreateInvoiceModal } from "./create-invoice-modal";
+import { CreateInvoiceModal, InvoiceData } from "./create-invoice-modal";
 import { useState } from "react";
 
 const initialInvoices = [
@@ -48,7 +48,7 @@ export function InvoiceList() {
         inv.client.toLowerCase().includes(filter.toLowerCase())
     );
 
-    const handleCreateMetadata = (newInvoice: any) => {
+    const handleCreateMetadata = (newInvoice: InvoiceData) => {
         setInvoices([...invoices, { ...newInvoice, id: `inv_${Date.now()}` }]);
         setIsModalOpen(false);
     };

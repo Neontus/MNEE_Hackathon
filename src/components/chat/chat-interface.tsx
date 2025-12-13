@@ -19,22 +19,51 @@ const initialMessages = [
 export function ChatInterface() {
     const [messages, setMessages] = useState(initialMessages);
     const [input, setInput] = useState("");
+    const [isLoading, setIsLoading] = useState(false);
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!input.trim()) return;
         const userMsg = { id: Date.now(), role: "user", content: input };
         setMessages((prev) => [...prev, userMsg]);
         setInput("");
+        setIsLoading(true);
 
-        // Simulate agent response
-        setTimeout(() => {
-            const agentMsg = {
+        try {
+            const response = await fetch("/api/chat", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ messages: [...messages, userMsg] }),
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                const agentMsg = {
+                    id: Date.now() + 1,
+                    role: "agent",
+                    content: data.content,
+                };
+                setMessages((prev) => [...prev, agentMsg]);
+            } else {
+                console.error("API Error:", data.error);
+                const errorMsg = {
+                    id: Date.now() + 1,
+                    role: "agent",
+                    content: "Sorry, I encountered an error connecting to the agent."
+                }
+                setMessages((prev) => [...prev, errorMsg]);
+            }
+        } catch (error) {
+            console.error("Network Error:", error);
+            const errorMsg = {
                 id: Date.now() + 1,
                 role: "agent",
-                content: "I've received your request. I'm processing that for you now.",
-            };
-            setMessages((prev) => [...prev, agentMsg]);
-        }, 1000);
+                content: "Sorry, I encountered a network error."
+            }
+            setMessages((prev) => [...prev, errorMsg]);
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -42,32 +71,46 @@ export function ChatInterface() {
             <CardHeader>
                 <CardTitle>Financial Agent</CardTitle>
             </CardHeader>
-            <CardContent className="flex-1 overflow-y-auto space-y-4">
-                {messages.map((msg) => (
-                    <div
-                        key={msg.id}
-                        className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
-                            }`}
-                    >
-                        <div
-                            className={`flex gap-2 max-w-[80%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                                }`}
-                        >
-                            <Avatar>
-                                <AvatarFallback>{msg.role === "user" ? "U" : "AI"}</AvatarFallback>
-                                <AvatarImage src={msg.role === "agent" ? "/bot-avatar.png" : undefined} />
-                            </Avatar>
+            <CardContent className="flex-1 overflow-hidden p-0">
+                <ScrollArea className="h-full p-4">
+                    <div className="space-y-4">
+                        {messages.map((msg) => (
                             <div
-                                className={`rounded-lg p-3 text-sm ${msg.role === "user"
-                                        ? "bg-primary text-primary-foreground"
-                                        : "bg-muted"
+                                key={msg.id}
+                                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
                                     }`}
                             >
-                                {msg.content}
+                                <div
+                                    className={`flex gap-2 max-w-[80%] ${msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                                        }`}
+                                >
+                                    <Avatar>
+                                        <AvatarFallback>{msg.role === "user" ? "U" : "AI"}</AvatarFallback>
+                                        <AvatarImage src={msg.role === "agent" ? "/bot-avatar.png" : undefined} />
+                                    </Avatar>
+                                    <div
+                                        className={`rounded-lg p-3 text-sm ${msg.role === "user"
+                                            ? "bg-primary text-primary-foreground"
+                                            : "bg-muted"
+                                            }`}
+                                    >
+                                        {msg.content}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
+                        ))}
+                        {isLoading && (
+                            <div className="flex justify-start">
+                                <div className="flex gap-2 items-center text-sm text-muted-foreground p-3">
+                                    <Avatar className="w-6 h-6">
+                                        <AvatarFallback>AI</AvatarFallback>
+                                    </Avatar>
+                                    <span>Thinking...</span>
+                                </div>
+                            </div>
+                        )}
                     </div>
-                ))}
+                </ScrollArea>
             </CardContent>
             <CardFooter className="pt-4">
                 <form
