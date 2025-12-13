@@ -1,12 +1,15 @@
-import { ActionSuggestions } from "@/components/chat/action-suggestions";
 import { ChatInterface } from "@/components/chat/chat-interface";
 
 export default async function ChatPage() {
     return (
-        <div className="container mx-auto p-6">
-            <h1 className="text-3xl font-bold mb-6">Chat Assistant</h1>
+        <div className="space-y-6">
+            <div>
+                <h1 className="text-3xl font-semibold tracking-tight">AI Assistant</h1>
+                <p className="text-muted-foreground mt-2">
+                    Get help with your finances, invoices, and treasury management
+                </p>
+            </div>
             <ChatInterface />
-            <ActionSuggestions />
         </div>
     );
 }

@@ -3,28 +3,28 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { LayoutDashboard, Receipt, PiggyBank, Bot } from "lucide-react";
+import { Wallet, FileText, PieChart, MessageSquare } from "lucide-react";
 
 const navItems = [
     {
         title: "Treasury",
         href: "/treasury",
-        icon: LayoutDashboard,
+        icon: Wallet,
     },
     {
         title: "Invoices",
         href: "/invoices",
-        icon: Receipt,
+        icon: FileText,
     },
     {
         title: "Budgets",
         href: "/budgets",
-        icon: PiggyBank,
+        icon: PieChart,
     },
     {
-        title: "Agent Chat",
+        title: "Assistant",
         href: "/chat",
-        icon: Bot,
+        icon: MessageSquare,
     },
 ];
 
@@ -32,22 +32,27 @@ export function MainNav() {
     const pathname = usePathname();
 
     return (
-        <nav className="flex items-center space-x-6 lg:space-x-8">
-            {navItems.map((item) => (
-                <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                        "text-sm font-medium transition-colors hover:text-primary flex items-center gap-2",
-                        pathname === item.href
-                            ? "text-primary"
-                            : "text-muted-foreground"
-                    )}
-                >
-                    <item.icon className="h-4 w-4" />
-                    {item.title}
-                </Link>
-            ))}
+        <nav className="flex items-center gap-1">
+            {navItems.map((item) => {
+                const isActive = pathname === item.href;
+                const Icon = item.icon;
+                return (
+                    <Link
+                        key={item.href}
+                        href={item.href}
+                        className={cn(
+                            "flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all",
+                            "hover:bg-accent hover:text-accent-foreground",
+                            isActive
+                                ? "bg-accent text-accent-foreground"
+                                : "text-muted-foreground"
+                        )}
+                    >
+                        <Icon className="h-4 w-4" />
+                        <span>{item.title}</span>
+                    </Link>
+                );
+            })}
         </nav>
     );
 }
