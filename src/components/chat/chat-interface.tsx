@@ -7,6 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState, useRef, useEffect } from "react";
 import { Send, Sparkles } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Message {
     id: number;
@@ -31,11 +33,38 @@ export function ChatInterface() {
     const [status, setStatus] = useState<string>("");
     const scrollRef = useRef<HTMLDivElement>(null);
 
+    // Load from local storage
+    useEffect(() => {
+        const saved = localStorage.getItem("chat_messages");
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    setMessages(parsed);
+                }
+            } catch (e) {
+                console.error("Failed to parse chat history");
+            }
+        }
+    }, []);
+
+    // Save to local storage
+    useEffect(() => {
+        if (messages.length > 1) { // Don't save if only initial message
+            localStorage.setItem("chat_messages", JSON.stringify(messages));
+        }
+    }, [messages]);
+
     useEffect(() => {
         if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            scrollRef.current.scrollIntoView({ behavior: "smooth" });
         }
     }, [messages, status]);
+
+    const handleClearChat = () => {
+        localStorage.removeItem("chat_messages");
+        setMessages(initialMessages);
+    }
 
     const handleSend = async () => {
         if (!input.trim()) return;
@@ -123,7 +152,7 @@ export function ChatInterface() {
     return (
         <Card className="border shadow-sm h-[calc(100vh-16rem)] flex flex-col">
             {/* Messages Area */}
-            <ScrollArea className="flex-1 p-6" ref={scrollRef}>
+            <ScrollArea className="flex-1 min-h-0 p-6">
                 <div className="space-y-6 max-w-3xl mx-auto">
                     {messages.map((msg) => (
                         <div
@@ -144,9 +173,11 @@ export function ChatInterface() {
                                         : "bg-muted"
                                         }`}
                                 >
-                                    <p className="text-sm whitespace-pre-wrap break-words">
-                                        {msg.content}
-                                    </p>
+                                    <div className="text-sm prose dark:prose-invert max-w-none break-words">
+                                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                            {msg.content}
+                                        </ReactMarkdown>
+                                    </div>
                                 </div>
                                 <span className="text-xs text-muted-foreground px-1" suppressHydrationWarning>
                                     {new Date(msg.timestamp).toLocaleTimeString('en-US', {
@@ -178,26 +209,38 @@ export function ChatInterface() {
                             </div>
                         </div>
                     )}
+                    <div ref={scrollRef} />
                 </div>
             </ScrollArea>
 
             {/* Input Area */}
             <div className="border-t p-4 bg-background">
                 <div className="max-w-3xl mx-auto space-y-3">
-                    {/* Quick Actions */}
-                    {messages.length <= 1 && (
-                        <div className="flex flex-wrap gap-2">
-                            {quickActions.map((action, idx) => (
-                                <button
-                                    key={idx}
-                                    onClick={() => setInput(action.prompt)}
-                                    className="px-3 py-1.5 text-xs rounded-full bg-accent hover:bg-accent/80 transition-colors"
-                                >
-                                    {action.label}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    <div className="flex justify-between items-center">
+                        {/* Quick Actions */}
+                        {messages.length <= 1 ? (
+                            <div className="flex flex-wrap gap-2">
+                                {quickActions.map((action, idx) => (
+                                    <button
+                                        key={idx}
+                                        onClick={() => setInput(action.prompt)}
+                                        className="px-3 py-1.5 text-xs rounded-full bg-accent hover:bg-accent/80 transition-colors"
+                                    >
+                                        {action.label}
+                                    </button>
+                                ))}
+                            </div>
+                        ) : <div></div>}
+
+                        {messages.length > 1 && (
+                            <button
+                                onClick={handleClearChat}
+                                className="text-xs text-muted-foreground hover:text-foreground underline"
+                            >
+                                Clear Chat
+                            </button>
+                        )}
+                    </div>
 
                     {/* Input Form */}
                     <form

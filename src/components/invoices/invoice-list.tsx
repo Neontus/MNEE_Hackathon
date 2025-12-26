@@ -13,45 +13,54 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import { CreateInvoiceModal, InvoiceData } from "./create-invoice-modal";
+import { SettleButton } from "./SettleButton";
 import { useState } from "react";
 
-const initialInvoices = [
-    {
-        id: "inv_001",
-        client: "Acme Corp",
-        amount: "$1,200.00",
-        status: "Paid",
-        dueDate: "2023-12-01",
-    },
-    {
-        id: "inv_002",
-        client: "Globex Inc",
-        amount: "$3,450.00",
-        status: "Pending",
-        dueDate: "2023-12-15",
-    },
-    {
-        id: "inv_003",
-        client: "Soylent Corp",
-        amount: "$800.00",
-        status: "Overdue",
-        dueDate: "2023-11-20",
-    },
-];
+
 
 export function InvoiceList() {
-    const [invoices, setInvoices] = useState(initialInvoices);
+    const [invoices, setInvoices] = useState<any[]>([]);
     const [filter, setFilter] = useState("");
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    const fetchInvoices = async () => {
+        try {
+            const res = await fetch('/api/invoices');
+            const data = await res.json();
+            setInvoices(data);
+        } catch (error) {
+            console.error("Failed to fetch invoices", error);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    useState(() => {
+        fetchInvoices();
+    });
 
     const filteredInvoices = invoices.filter((inv) =>
         inv.client.toLowerCase().includes(filter.toLowerCase())
     );
 
-    const handleCreateMetadata = (newInvoice: InvoiceData) => {
-        setInvoices([...invoices, { ...newInvoice, id: `inv_${Date.now()}` }]);
-        setIsModalOpen(false);
+    const handleCreateMetadata = async (newInvoice: InvoiceData) => {
+        try {
+            const res = await fetch('/api/invoices', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(newInvoice),
+            });
+            if (res.ok) {
+                fetchInvoices();
+                setIsModalOpen(false);
+            }
+        } catch (error) {
+            console.error("Failed to create invoice", error);
+        }
     };
+
+    if (isLoading) return <div>Loading invoices...</div>;
 
     return (
         <div className="space-y-4">
@@ -78,27 +87,46 @@ export function InvoiceList() {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {filteredInvoices.map((inv) => (
-                            <TableRow key={inv.id}>
-                                <TableCell className="font-medium">{inv.id}</TableCell>
-                                <TableCell>{inv.client}</TableCell>
-                                <TableCell>
-                                    <Badge
-                                        variant={
-                                            inv.status === "Paid"
-                                                ? "secondary"
-                                                : inv.status === "Overdue"
-                                                    ? "destructive"
-                                                    : "outline"
-                                        }
-                                    >
-                                        {inv.status}
-                                    </Badge>
+                        {filteredInvoices.length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                                    No invoices found. Create one to get started.
                                 </TableCell>
-                                <TableCell>{inv.dueDate}</TableCell>
-                                <TableCell className="text-right">{inv.amount}</TableCell>
                             </TableRow>
-                        ))}
+                        ) : (
+                            filteredInvoices.map((inv) => (
+                                <TableRow key={inv.id}>
+                                    <TableCell className="font-medium">{inv.id}</TableCell>
+                                    <TableCell>{inv.client}</TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            variant={
+                                                inv.status === "Paid"
+                                                    ? "secondary"
+                                                    : inv.status === "Overdue"
+                                                        ? "destructive"
+                                                        : "outline"
+                                            }
+                                        >
+                                            {inv.status}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>{inv.dueDate}</TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex flex-col items-end gap-2">
+                                            <span>{inv.amount}</span>
+                                            {inv.status === "Pending" && (
+                                                <SettleButton
+                                                    to="0x0000000000000000000000000000000000000001" // Mock Client
+                                                    amount={inv.amount.replace('$', '').replace(',', '')}
+                                                    reason={`Invoice ${inv.id}`}
+                                                />
+                                            )}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
                     </TableBody>
                 </Table>
             </div>

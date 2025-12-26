@@ -22,6 +22,7 @@ interface Invoice {
 
 export interface InvoiceData {
     client: string;
+    recipientAddress: string;
     amount: string;
     status: string;
     dueDate: string;
@@ -39,6 +40,7 @@ export function CreateInvoiceModal({
     onSubmit,
 }: CreateInvoiceModalProps) {
     const [client, setClient] = useState("");
+    const [recipientAddress, setRecipientAddress] = useState("");
     const [amount, setAmount] = useState("");
     const [dueDate, setDueDate] = useState("");
 
@@ -46,11 +48,13 @@ export function CreateInvoiceModal({
         e.preventDefault();
         onSubmit({
             client,
+            recipientAddress,
             amount: `$${amount}`,
             status: "Pending",
             dueDate,
         });
         setClient("");
+        setRecipientAddress("");
         setAmount("");
         setDueDate("");
     };
@@ -74,6 +78,19 @@ export function CreateInvoiceModal({
                                 id="client"
                                 value={client}
                                 onChange={(e) => setClient(e.target.value)}
+                                className="col-span-3"
+                                required
+                            />
+                        </div>
+                        <div className="grid grid-cols-4 items-center gap-4">
+                            <Label htmlFor="recipient" className="text-right">
+                                Recipient
+                            </Label>
+                            <Input
+                                id="recipient"
+                                placeholder="0x..."
+                                value={recipientAddress}
+                                onChange={(e) => setRecipientAddress(e.target.value)}
                                 className="col-span-3"
                                 required
                             />

@@ -2,6 +2,8 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { cookies } from "next/headers";
 import { TOOLS, executeTool } from "@/lib/ai-tools";
 
+export const dynamic = 'force-dynamic';
+
 export async function POST(req: Request) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -22,7 +24,8 @@ export async function POST(req: Request) {
         // User requested gemini-2.0/2.5 but hit rate limits.
         // Switching to gemini-1.5-flash which has a stable free tier.
         const model = genAI.getGenerativeModel({ 
-            model: "gemini-2.0-flash-lite", 
+            model: "gemini-2.5-flash-lite", 
+            systemInstruction: "You are an AI Treasury Agent for the MNEE Project. You strictly manage a USDC Treasury on the Sepolia testnet. Always use USDC as your currency unit. You can view balances, check budgets, create invoices, and settle payments. If a user asks to pay, check the budget first. When listing items like invoices, ALWAYS use Markdown tables. Ensure you include a blank line before and after the table. Do not use plain text blocks.",
             tools: [{ functionDeclarations: TOOLS }] 
         });
 

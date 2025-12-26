@@ -1,0 +1,17 @@
+[
+  {
+    "id": "inv_1766730570822",
+    "client": "test client",
+    "amount": "$1",
+    "status": "Pending",
+    "dueDate": "2025-12-25"
+  },
+  {
+    "id": "inv_1766731239393",
+    "client": "john",
+    "recipientAddress": "0xf5bdCAe863D762e38455aCB71f2bFEfdc3547822",
+    "amount": "0.01 USDC",
+    "status": "Pending",
+    "dueDate": "2025-12-26"
+  }
+]

@@ -1,83 +1,197 @@
-import Mnee from '@mnee/ts-sdk';
-import { mnee } from './mnee';
-import type { TransferResponse } from '@mnee/ts-sdk';
+import { createPublicClient, createWalletClient, http, formatUnits, parseUnits } from 'viem';
+import { privateKeyToAccount } from 'viem/accounts';
+import { sepolia } from 'viem/chains';
+import { TOKENS, ERC20_ABI } from './constants/tokens';
+import { TREASURY_ABI } from './contracts/abi';
 
-const MNEMONIC = process.env.TREASURY_MNEMONIC;
+// Default to Sepolia
+const client = createPublicClient({
+  chain: sepolia,
+  transport: http()
+});
+
+const TREASURY_ADDRESS = process.env.TREASURY_ADDRESS as `0x${string}`;
+const AGENT_KEY = process.env.AGENT_PRIVATE_KEY as `0x${string}`;
 
 class TreasuryService {
-  private wallet: any | null = null; // Typing 'any' for now as HDWallet type might be dynamic from SDK
-  private mneeInstance: Mnee;
-  private readonly DERIVATION_PATH = "m/44'/236'/0'";
-
-  constructor(mneeInstance: Mnee, mnemonic?: string) {
-    this.mneeInstance = mneeInstance;
-    if (mnemonic) {
-      try {
-        this.wallet = this.mneeInstance.HDWallet(mnemonic, {
-          derivationPath: this.DERIVATION_PATH,
-        });
-      } catch (error) {
-        console.error("Failed to initialize Treasury Wallet:", error);
-      }
-    } else {
-        console.warn("TREASURY_MNEMONIC is missing");
-    }
+  async getAddress(): Promise<string | null> {
+    return TREASURY_ADDRESS || null;
   }
 
-  async getAddress(index = 0): Promise<string | null> {
-    if (!this.wallet) return null;
-    const addressInfo = await this.wallet.deriveAddress(index, false);
-    return addressInfo.address;
-  }
-
-  async getBalance(): Promise<{ confirmed: number, unconfirmed: number, total: number }> {
-    const address = await this.getAddress();
-    if (!address) return { confirmed: 0, unconfirmed: 0, total: 0 };
+  async getBalance(): Promise<{ confirmed: string, unconfirmed: number, total: string }> {
+    if (!TREASURY_ADDRESS) return { confirmed: '0', unconfirmed: 0, total: '0' };
     
-    // SDK balance returns { address, amount, decimalAmount }
-    // amount is in atomic units? Documentation says:
-    // "amount: number" (atomic?), "decimalAmount: number" (MNEE?)
-    // "1 MNEE = 100,000 atomic units"
-    // "SDK methods expecting amounts use MNEE values (not atomic)"
-    // Let's return total MNEE for simplicity
     try {
-        const balance = await this.mneeInstance.balance(address);
-        // Assuming balance.amount is atomic based on docs: "amount: number; // Atomic units" ?
-        // Wait, doc says: "Returns: { address: string, amount: number, decimalAmount: number }"
-        // And under Unit System: "User-facing amounts should be in MNEE (decimal)"
-        // Let's assume decimalAmount is the one strictly for display if available, but docs are slightly ambiguous.
-        // Re-reading docs: "amount: number (atomic units)" in FeeTier section, but for Balance it just says "amount, decimalAmount".
-        // Usually 'amount' is sats/atomic. 'decimalAmount' is float.
-        return { confirmed: 0, unconfirmed: 0, total: balance.decimalAmount || 0 };
+        const balance = await client.readContract({
+            address: TOKENS.sepolia.USDC,
+            abi: ERC20_ABI,
+            functionName: 'balanceOf',
+            args: [TREASURY_ADDRESS]
+        });
+        
+        const formatted = formatUnits(balance, 6); // USDC has 6 decimals
+        return { confirmed: formatted, unconfirmed: 0, total: formatted };
     } catch (e) {
         console.error("Failed to fetch balance", e);
-        return { confirmed: 0, unconfirmed: 0, total: 0 };
+        return { confirmed: '0', unconfirmed: 0, total: '0' };
     }
   }
 
-  async send(toAddress: string, amountMnee: number): Promise<TransferResponse | null> {
-    const fromAddressInfo = await this.wallet?.deriveAddress(0, false);
-    if (!fromAddressInfo) throw new Error("Treasury wallet not initialized");
+  async getBudget(category?: string): Promise<{ dailyLimit: string, spentToday: string }> {
+      if (!TREASURY_ADDRESS) return { dailyLimit: '0', spentToday: '0' };
 
-    const privateKeyWif = fromAddressInfo.privateKey;
-    
-    // SDK transfer takes recipients and sender private key
-    // recipients: [{ address, amount }]
-    // "amount" in recipients checks: "amount: 10.5". So it takes MNEE units.
-    
-    try {
-        const recipients = [{ address: toAddress, amount: amountMnee }];
-        const response = await this.mneeInstance.transfer(
-            recipients,
-            privateKeyWif,
-            { broadcast: true }
-        );
-        return response;
-    } catch (e) {
-        console.error("Transfer failed", e);
-        throw e;
-    }
+      try {
+          if (category) {
+              const [limit, spent] = await Promise.all([
+                  client.readContract({
+                      address: TREASURY_ADDRESS,
+                      abi: TREASURY_ABI,
+                      functionName: 'categoryLimits',
+                      args: [category]
+                  }),
+                  client.readContract({
+                      address: TREASURY_ADDRESS,
+                      abi: TREASURY_ABI,
+                      functionName: 'categorySpent',
+                      args: [category]
+                  })
+              ]);
+              return {
+                  dailyLimit: formatUnits(limit, 6),
+                  spentToday: formatUnits(spent, 6)
+              };
+          } else {
+              const [limit, spent] = await Promise.all([
+                  client.readContract({
+                      address: TREASURY_ADDRESS,
+                      abi: TREASURY_ABI,
+                      functionName: 'dailyLimit'
+                  }),
+                  client.readContract({
+                      address: TREASURY_ADDRESS,
+                      abi: TREASURY_ABI,
+                      functionName: 'spentToday'
+                  })
+              ]);
+              return {
+                  dailyLimit: formatUnits(limit, 6),
+                  spentToday: formatUnits(spent, 6)
+              };
+          }
+      } catch (e) {
+          console.error("Failed to fetch budget", e);
+          return { dailyLimit: '0', spentToday: '0' };
+      }
+  }
+
+  async pay(to: string, amount: number, reason: string, category?: string): Promise<{ success: boolean; txHash?: string; message?: string }> {
+      if (!AGENT_KEY) {
+          return { 
+              success: false, 
+              message: "Agent private key not configured. I can only propose transactions." 
+          };
+      }
+
+      try {
+          const account = privateKeyToAccount(AGENT_KEY);
+          
+          // Verify authorization
+          const agentAddress = await client.readContract({
+              address: TREASURY_ADDRESS,
+              abi: TREASURY_ABI,
+              functionName: 'agent',
+          });
+          
+          if (agentAddress.toLowerCase() !== account.address.toLowerCase()) {
+              return {
+                  success: false,
+                  message: `Agent Wallet (${account.address}) is not authorized on Treasury Contract. Expected Agent: (${agentAddress}). Please update the contract owner to set this agent or change the valid agent key.`
+              };
+          }
+
+          const wallet = createWalletClient({
+              account,
+              chain: sepolia,
+              transport: http()
+          });
+
+          const amountUnits = parseUnits(amount.toString(), 6);
+          
+          if (category) {
+              const { request } = await client.simulateContract({
+                  account,
+                  address: TREASURY_ADDRESS,
+                  abi: TREASURY_ABI,
+                  functionName: 'payCategory',
+                  args: [TOKENS.sepolia.USDC, to as `0x${string}`, amountUnits, reason, category]
+              });
+              const hash = await wallet.writeContract(request);
+              return { success: true, txHash: hash, message: `Payment sent! Tx: ${hash}` };
+          } else {
+              const { request } = await client.simulateContract({
+                  account,
+                  address: TREASURY_ADDRESS,
+                  abi: TREASURY_ABI,
+                  functionName: 'pay',
+                  args: [TOKENS.sepolia.USDC, to as `0x${string}`, amountUnits, reason]
+              });
+              const hash = await wallet.writeContract(request);
+              return { success: true, txHash: hash, message: `Payment sent! Tx: ${hash}` };
+          }
+
+      } catch (e: any) {
+          console.error("Payment failed", e);
+          return { success: false, message: e.message || "Payment execution failed." };
+      }
+  }
+
+  // Legacy send (proposal)
+  async send(toAddress: string, amount: number): Promise<{ ticketId?: string }> {
+      console.warn("Using proposal mechanism.");
+      // In a real app, strict proposal logic here.
+      return { ticketId: `prop_${Date.now()}` }; 
+  }
+
+  async setBudget(amount: number, category?: string): Promise<{ success: boolean; txHash?: string; message?: string }> {
+      if (!AGENT_KEY) return { success: false, message: "No Agent Key" };
+
+      try {
+          const account = privateKeyToAccount(AGENT_KEY);
+          const wallet = createWalletClient({
+              account,
+              chain: sepolia,
+              transport: http()
+          });
+          
+          const amountUnits = parseUnits(amount.toString(), 6);
+
+          if (category) {
+              const { request } = await client.simulateContract({
+                  account,
+                  address: TREASURY_ADDRESS,
+                  abi: TREASURY_ABI,
+                  functionName: 'setCategoryLimit',
+                  args: [category, amountUnits]
+              });
+              const hash = await wallet.writeContract(request);
+              return { success: true, txHash: hash, message: `Category Budget Set. Tx: ${hash}` };
+          } else {
+              const { request } = await client.simulateContract({
+                  account,
+                  address: TREASURY_ADDRESS,
+                  abi: TREASURY_ABI,
+                  functionName: 'setDailyLimit',
+                  args: [amountUnits]
+              });
+              const hash = await wallet.writeContract(request);
+              return { success: true, txHash: hash, message: `Daily Budget Set. Tx: ${hash}` };
+          }
+
+      } catch (e: any) {
+         console.error("Set Budget Failed", e);
+         return { success: false, message: e.message || "Set Budget failed" };
+      }
   }
 }
 
-export const treasury = new TreasuryService(mnee, MNEMONIC);
+export const treasury = new TreasuryService();
